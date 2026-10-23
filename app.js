@@ -343,13 +343,26 @@ function startCalibration() {
 
 function finishCalibration() {
   const v = S.calibScores.slice().sort((a, b) => a - b);
+  const q = (p) => (v.length ? v[Math.min(v.length - 1, Math.floor(v.length * p))] : 0);
+
   // 보정 중에 동물이 몇 번 움직여도 흔들리지 않도록 중앙값 + MAD 를 쓴다.
-  const med = v.length ? v[v.length >> 1] : 0;
+  const med = q(0.5);
   const dev = v.map((x) => Math.abs(x - med)).sort((a, b) => a - b);
   const mad = dev.length ? dev[dev.length >> 1] : 0;
 
+  // 깨끗한 카메라에서는 프레임 절반 이상이 정확히 0이라 중앙값도 MAD도 0이 된다.
+  // 그러면 위 공식이 분포의 꼬리를 전혀 못 본다 — 가끔 40씩 튀는 프레임이 있어도
+  // 기준이 바닥값으로 내려앉아 그 40이 전부 움직임으로 잡힌다.
+  // 상위 분위수를 같이 봐서 꼬리를 덮는다.
+  const p95 = q(0.95);
+
   S.noiseFloor = med;
-  S.activeThreshold = Math.max(6, Math.round(med + cfg.activeMul * (mad || 1)));
+  S.noiseP95 = p95;
+  S.activeThreshold = Math.max(
+    6,
+    Math.round(med + cfg.activeMul * (mad || 1)),
+    Math.round(p95 * 1.5) + 1,
+  );
 
   S.calibrating = false;
   S.lastActiveAt = Date.now();      // 보정 종료 시점을 기준점으로 삼는다
@@ -357,8 +370,8 @@ function finishCalibration() {
   S.bucket = newBucket(Math.floor(Date.now() / 60000));
   setPill('run', '감시 중');
   $('liveNote').className = 'note';
-  $('liveNote').innerHTML = `보정 완료 — 노이즈 중앙값 <b>${med}</b>, 판정 기준 <b>${S.activeThreshold}</b>픽셀. 오탐이 많으면 설정에서 판정 배수를 올리세요.`;
-  addEvent('info', `보정 완료 (노이즈 ${med}, 기준 ${S.activeThreshold})`);
+  $('liveNote').innerHTML = `보정 완료 — 노이즈 중앙값 <b>${med}</b>, 상위5% <b>${p95}</b>, 판정 기준 <b>${S.activeThreshold}</b>픽셀. 오탐이 많으면 설정에서 판정 배수를 올리세요.`;
+  addEvent('info', `보정 완료 (노이즈 ${med}, 상위5% ${p95}, 기준 ${S.activeThreshold})`);
 }
 
 /* ───────────────────────── 시작 / 정지 ───────────────────────── */
