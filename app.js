@@ -13,7 +13,7 @@
 
 /* 화면 상단에 그대로 표시된다. 폰이 구버전을 캐시했는지 눈으로 바로 확인하려는 것.
    코드를 고쳐 배포할 때마다 올리고, index.html 의 app.js?v= 도 같이 맞춘다. */
-const VERSION = '1.4';
+const VERSION = '1.5';
 
 /* ───────────────────────── 설정 ───────────────────────── */
 
@@ -189,6 +189,7 @@ const S = {
   activeThreshold: 8,
   noiseFloor: 0,
   night: false,          // 야간 조명 패널 표시 여부
+  preNight: null,        // 야간 조명 켜기 전 카메라/채널 설정
   lum: null,             // 최근 프레임 평균 밝기 (0~255)
   darkSince: null,       // 어두워지기 시작한 시각
   darkWarned: false,
@@ -442,11 +443,37 @@ function applyNightColor() {
   $('nightRange').value = cfg.nightPct;
 }
 
-function toggleNight(on) {
+/* 화면을 광원으로 쓰려면 화면과 같은 방향을 보는 전면 카메라여야 한다. 후면 카메라인 채로
+   켜면 빛은 뒤를, 카메라는 앞을 향해 아무 소용이 없다. 적색광 아래에서는 빨강 채널만
+   쓰는 쪽이 훨씬 또렷하다. 셋 다 물리적으로 묶여 있으므로 한 번에 같이 바꾼다. */
+async function toggleNight(on) {
   S.night = on;
   $('nightPanel').classList.toggle('on', on);
   $('btnNight').classList.toggle('on', on);
   if (on) applyNightColor();
+
+  const want = on
+    ? { camera: 'user', redChannel: true }
+    : (S.preNight || { camera: cfg.camera, redChannel: cfg.redChannel });
+
+  if (on) S.preNight = { camera: cfg.camera, redChannel: cfg.redChannel };
+  else S.preNight = null;
+
+  const changed = cfg.camera !== want.camera || cfg.redChannel !== want.redChannel;
+  cfg.camera = want.camera;
+  cfg.redChannel = want.redChannel;
+  cfgToForm();
+  await saveCfg();
+
+  if (!changed) return;
+  // 조명 조건이 통째로 달라졌으므로 기존 보정값은 더 이상 유효하지 않다.
+  await addEvent('info', on
+    ? '야간 조명: 전면 카메라 + 적색 채널로 전환하고 재보정합니다.'
+    : '야간 조명 해제: 원래 카메라 설정으로 되돌리고 재보정합니다.');
+  if (S.running) {
+    await onStreamLost();
+    startCalibration();
+  }
 }
 
 async function start() {

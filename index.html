@@ -99,6 +99,7 @@
 
   /* 야간 조명: 화면 자체를 광원으로 쓴다. 전면 카메라와 같은 방향을 비춘다. */
   #nightPanel{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;justify-content:flex-end}
+  @supports (height:100dvh){ #nightPanel{bottom:auto;height:100dvh} }
   #nightPanel.on{display:flex}
   #nightCtl{background:rgba(0,0,0,.8);padding:12px 14px;
     padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center}
@@ -215,11 +216,11 @@
       <option value="environment">후면 (기본)</option>
       <option value="user">전면 (화면 쪽)</option>
     </select>
-    <i>화면을 조명으로 쓰려면 전면 카메라를 골라야 합니다. 화면과 같은 방향을 봅니다. 바꾸면 카메라가 재시작됩니다.</i>
+    <i>화면과 같은 방향을 보는 것이 전면입니다. <b>야간 조명</b> 버튼을 누르면 이 값과 아래 적색 채널이 자동으로 바뀌고, 해제하면 원래대로 돌아옵니다. 직접 바꾸면 카메라가 재시작됩니다.</i>
   </label>
 
   <label class="chk"><input type="checkbox" id="sRed">
-    <span>적색 채널로 분석<i>붉은 조명 아래에서만 켜세요. 평소 쓰는 흑백 변환 공식은 빨강에 30% 가중치만 줘서, 적색광에서는 신호의 대부분을 버립니다. 이걸 켜면 빨강만 그대로 씁니다.</i></span>
+    <span>적색 채널로 분석<i><b>야간 조명</b>을 켜면 자동으로 함께 켜집니다. 외부 적색등을 따로 쓸 때만 직접 켜세요. 평소 쓰는 흑백 변환 공식은 빨강에 30% 가중치만 줘서, 적색광에서는 신호의 대부분을 버립니다. 이걸 켜면 빨강만 그대로 씁니다.</i></span>
   </label>
 
   <h2>감지 민감도</h2>
@@ -270,6 +271,6 @@
   <button id="btnAck">해제</button>
 </div>
 
-<script src="app.js?v=1.4"></script>
+<script src="app.js?v=1.5"></script>
 </body>
 </html>
