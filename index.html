@@ -22,6 +22,7 @@
   header{display:flex;align-items:center;gap:10px;padding:14px 16px;
     border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
   header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em}
+  header h1 small{font-size:11px;color:#6e7681;font-weight:400;margin-left:3px}
   .pill{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;
     border:1px solid var(--line);color:var(--dim);white-space:nowrap}
   .pill.run{color:var(--accent);border-color:#1f4d33;background:#0f2a1c}
@@ -108,7 +109,7 @@
 <body>
 
 <header>
-  <h1>케이지워치</h1>
+  <h1>케이지워치 <small id="ver"></small></h1>
   <div id="pill" class="pill">대기</div>
 </header>
 
@@ -234,6 +235,6 @@
   <button id="btnAck">해제</button>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=1.2"></script>
 </body>
 </html>

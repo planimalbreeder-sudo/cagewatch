@@ -11,6 +11,10 @@
  */
 'use strict';
 
+/* 화면 상단에 그대로 표시된다. 폰이 구버전을 캐시했는지 눈으로 바로 확인하려는 것.
+   코드를 고쳐 배포할 때마다 올리고, index.html 의 app.js?v= 도 같이 맞춘다. */
+const VERSION = '1.2';
+
 /* ───────────────────────── 설정 ───────────────────────── */
 
 const DIFF_W = 128, DIFF_H = 96;          // 차분 해상도
@@ -817,6 +821,7 @@ $('btnWipe').addEventListener('click', async () => {
 });
 
 (async function init() {
+  $('ver').textContent = 'v' + VERSION;
   const saved = await loadCfg().catch(() => null);
   if (saved) cfg = { ...DEFAULTS, ...saved };
   cfgToForm();
