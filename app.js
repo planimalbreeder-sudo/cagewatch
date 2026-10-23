@@ -13,7 +13,7 @@
 
 /* 화면 상단에 그대로 표시된다. 폰이 구버전을 캐시했는지 눈으로 바로 확인하려는 것.
    코드를 고쳐 배포할 때마다 올리고, index.html 의 app.js?v= 도 같이 맞춘다. */
-const VERSION = '1.2';
+const VERSION = '1.4';
 
 /* ───────────────────────── 설정 ───────────────────────── */
 
@@ -34,6 +34,10 @@ const DEFAULTS = {
   pixelThreshold: 30,
   activeMul: 4,           // 노이즈 대비 배수
   minuteActivePct: 2,     // 이 비율 이상 움직인 분만 "활동한 분"으로 인정
+  darkLum: 12,            // 평균 밝기가 이 아래면 '아무것도 안 보임'으로 본다 (0~255)
+  camera: 'environment',  // 'user' 로 두면 화면과 같은 방향(전면)을 본다
+  redChannel: false,      // 적색 조명 아래에서는 빨강 채널만 쓴다
+  nightPct: 40,           // 야간 조명 패널의 적색 세기 (%)
   keepDays: 30,
   region: null,           // {x,y,w,h} 0~1 정규화
 };
@@ -138,20 +142,28 @@ function sampleFrame(video) {
   const d = diffCtx.getImageData(0, 0, DIFF_W, DIFF_H).data;
   const n = DIFF_W * DIFF_H;
   const gray = new Uint8Array(n);
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    gray[i] = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8;
+  if (cfg.redChannel) {
+    // 적색 조명 아래에서는 화면이 거의 빨강 단색이라 휘도 공식(빨강 가중치 30%)이
+    // 신호의 대부분을 버린다. 빨강 채널을 그대로 쓰는 쪽이 훨씬 밝고 또렷하다.
+    for (let i = 0, p = 0; i < n; i++, p += 4) gray[i] = d[p];
+  } else {
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      gray[i] = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8;
+    }
   }
-  if (!prevGray) { prevGray = gray; return { score: 0, ratio: 0, valid: false, warmup: true }; }
+  if (!prevGray) { prevGray = gray; return { score: 0, ratio: 0, valid: false, warmup: true, lum: 0 }; }
 
   // 1단계: 전역 밝기 이동량을 구해 상쇄한다.
   //   자동노출이 흔들리거나 방 조명이 바뀌면 화면 전체가 같은 방향으로 변하는데,
   //   이걸 빼지 않으면 조명 변화가 전부 "움직임"으로 잡힌다.
-  let sum = 0, cnt = 0;
+  let sum = 0, cnt = 0, lumSum = 0;
   for (let i = 0; i < n; i++) {
     if (mask && !mask[i]) continue;
     sum += gray[i] - prevGray[i]; cnt++;
+    lumSum += gray[i];
   }
   const shift = cnt ? sum / cnt : 0;
+  const lum = cnt ? lumSum / cnt : 0;
 
   // 2단계: 상쇄 후에도 임계값을 넘는 픽셀만 센다.
   let changed = 0;
@@ -164,7 +176,7 @@ function sampleFrame(video) {
 
   const ratio = changed / (cnt || 1);
   // 영역 절반 이상이 한꺼번에 변했으면 손이 들어왔거나 조명이 바뀐 것으로 보고 버린다.
-  return { score: changed, ratio, valid: ratio <= 0.5 };
+  return { score: changed, ratio, valid: ratio <= 0.5, lum };
 }
 
 /* ───────────────────────── 상태 ───────────────────────── */
@@ -176,6 +188,10 @@ const S = {
   calibScores: [],
   activeThreshold: 8,
   noiseFloor: 0,
+  night: false,          // 야간 조명 패널 표시 여부
+  lum: null,             // 최근 프레임 평균 밝기 (0~255)
+  darkSince: null,       // 어두워지기 시작한 시각
+  darkWarned: false,
   lastActiveAt: 0,       // 프레임 단위. 화면 표시용
   lastActiveMinute: null, // 분 단위. 무활동 알람은 이쪽만 본다
   bucket: null,          // { t, frames, active, invalid, sum, max }
@@ -269,6 +285,7 @@ function tick() {
   const r = sampleFrame(video);
   S.lastFrameAt = Date.now();
   if (r.warmup) return;
+  S.lum = r.lum;
 
   // 보정 구간: 임계값을 정하기 위한 표본만 모은다.
   if (S.calibrating) {
@@ -328,9 +345,41 @@ async function onMinute(done) {
     await addEvent('info', '움직임이 다시 감지되어 알람을 해제했습니다.');
   }
 
+  checkDarkness();
+
   if (min % 30 === 0) pruneOld();
   if ($('tab-stats').classList.contains('on')) renderCharts();
   updateLiveUI(null);
+}
+
+
+/* 화면이 너무 어두우면 감시가 조용히 무의미해진다.
+   깜깜해서 안 보이는 것과 동물이 안 움직이는 것은 둘 다 "활동 0"으로 찍히므로
+   구분이 안 된다. 어두우면 명시적으로 알려서 조명을 켜게 한다. */
+function checkDarkness() {
+  if (S.lum == null || S.calibrating) return;
+  const dark = S.lum < cfg.darkLum;
+  if (!dark) {
+    if (S.darkWarned) {
+      addEvent('info', `화면이 다시 밝아졌습니다 (밝기 ${Math.round(S.lum)}).`);
+      $('liveNote').className = 'note';
+      $('liveNote').textContent = '감시 중입니다.';
+    }
+    S.darkSince = null; S.darkWarned = false;
+    return;
+  }
+  if (!S.darkSince) S.darkSince = Date.now();
+  // 잠깐 어두워진 건 넘어가고, 2분 넘게 지속될 때만 경고한다.
+  if (Date.now() - S.darkSince < 120000 || S.darkWarned) return;
+  S.darkWarned = true;
+  $('liveNote').className = 'note warn';
+  $('liveNote').innerHTML = `<b>화면이 너무 어둡습니다 (밝기 ${Math.round(S.lum)}/255).</b> `
+    + '카메라가 아무것도 보지 못하는 상태라 지금 기록되는 "활동 0"은 의미가 없습니다. '
+    + '조명을 켠 뒤 <b>재보정</b>하세요.';
+  addEvent('warn', `화면이 너무 어둡습니다 (밝기 ${Math.round(S.lum)}). 감지가 무의미한 상태입니다.`);
+  if (cfg.notif && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('케이지워치', { body: '화면이 너무 어두워 감지할 수 없습니다.', tag: 'cw-dark' }); } catch (_) {}
+  }
 }
 
 /* ───────────────────────── 보정 ───────────────────────── */
@@ -380,16 +429,33 @@ function finishCalibration() {
 
 /* ───────────────────────── 시작 / 정지 ───────────────────────── */
 
+function camConstraints() {
+  return { video: { facingMode: { ideal: cfg.camera }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+}
+
+/* 야간 조명: 화면을 광원으로 쓴다. 화면은 어차피 켜져 있어야 하므로 추가 비용이 없다.
+   OS 화면 밝기는 웹에서 못 바꾸므로, 폰 밝기를 최대로 올려둬야 효과가 난다. */
+function applyNightColor() {
+  const v = Math.round(255 * cfg.nightPct / 100);
+  $('nightPanel').style.background = `rgb(${v},0,0)`;
+  $('nightPctVal').textContent = cfg.nightPct;
+  $('nightRange').value = cfg.nightPct;
+}
+
+function toggleNight(on) {
+  S.night = on;
+  $('nightPanel').classList.toggle('on', on);
+  $('btnNight').classList.toggle('on', on);
+  if (on) applyNightColor();
+}
+
 async function start() {
   unlockAudio();
   if (cfg.notif && 'Notification' in window && Notification.permission === 'default') {
     try { await Notification.requestPermission(); } catch (_) {}
   }
   try {
-    S.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false,
-    });
+    S.stream = await navigator.mediaDevices.getUserMedia(camConstraints());
   } catch (e) {
     setPill('err', '카메라 실패');
     $('liveNote').className = 'note warn';
@@ -441,9 +507,7 @@ async function onStreamLost() {
   setPill('err', '카메라 복구 중');
   try {
     if (S.stream) S.stream.getTracks().forEach((t) => t.stop());
-    S.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-    });
+    S.stream = await navigator.mediaDevices.getUserMedia(camConstraints());
     video.srcObject = S.stream;
     await video.play().catch(() => {});
     S.stream.getVideoTracks()[0].addEventListener('ended', onStreamLost);
@@ -526,6 +590,16 @@ function updateLiveUI(r) {
   // 화면은 "방금"인데 알람 시계는 따로 도는 상황이 생겨 혼란스럽다.
   $('mLast').textContent = S.calibrating ? '보정 중' : fmtIdle(S.lastActiveMinute);
   $('mThr').innerHTML = S.calibrating ? '–' : `${S.activeThreshold}<small>px</small>`;
+  const lumEl = $('mLum');
+  if (lumEl) {
+    lumEl.innerHTML = S.lum == null ? '–' : `${Math.round(S.lum)}<small>/255</small>`;
+    lumEl.style.color = (S.lum != null && S.lum < cfg.darkLum) ? 'var(--bad)' : '';
+  }
+  const nv = $('nightLumVal');
+  if (nv && S.night) {
+    nv.textContent = S.lum == null ? '–' : Math.round(S.lum);
+    nv.style.color = (S.lum != null && S.lum >= cfg.darkLum) ? '#4ade80' : '#f87171';
+  }
 }
 setInterval(() => { if (S.running) updateLiveUI(null); }, 5000);
 
@@ -752,6 +826,7 @@ const FIELDS = [
   ['sSound', 'sound', 'bool'], ['sNotif', 'notif', 'bool'],
   ['sSample', 'sampleMs', 'num'], ['sPix', 'pixelThreshold', 'num'],
   ['sMul', 'activeMul', 'num'], ['sMinPct', 'minuteActivePct', 'num'],
+  ['sCam', 'camera', 'str'], ['sRed', 'redChannel', 'bool'],
   ['sKeep', 'keepDays', 'num'],
 ];
 
@@ -763,7 +838,7 @@ function cfgToForm() {
 }
 
 async function formToCfg() {
-  const oldSample = cfg.sampleMs;
+  const oldSample = cfg.sampleMs, oldCam = cfg.camera;
   for (const [id, key, kind] of FIELDS) {
     const el = $(id);
     if (kind === 'bool') cfg[key] = el.checked;
@@ -773,6 +848,11 @@ async function formToCfg() {
     } else cfg[key] = el.value;
   }
   await saveCfg();
+  if (S.running && cfg.camera !== oldCam) {
+    await addEvent('info', `카메라를 ${cfg.camera === 'user' ? '전면' : '후면'}으로 바꿔 다시 엽니다.`);
+    await onStreamLost();
+    startCalibration();
+  }
   if (S.running && cfg.sampleMs !== oldSample) {
     clearInterval(S.timer);
     S.timer = setInterval(tick, cfg.sampleMs);
@@ -813,6 +893,13 @@ $('btnAck').addEventListener('click', async () => {
   S.lastActiveMinute = Math.floor(Date.now() / 60000);
   await addEvent('info', '알람을 수동으로 해제했습니다.');
 });
+$('btnNight').addEventListener('click', () => toggleNight(!S.night));
+$('nightOff').addEventListener('click', () => toggleNight(false));
+$('nightRange').addEventListener('input', (e) => {
+  cfg.nightPct = Number(e.target.value);
+  applyNightColor();
+  saveCfg();
+});
 $('btnSave').addEventListener('click', formToCfg);
 $('btnExport').addEventListener('click', exportCsv);
 $('btnWipe').addEventListener('click', async () => {
@@ -825,6 +912,7 @@ $('btnWipe').addEventListener('click', async () => {
   const saved = await loadCfg().catch(() => null);
   if (saved) cfg = { ...DEFAULTS, ...saved };
   cfgToForm();
+  applyNightColor();
   buildMask();
   fitOverlay();
   renderLog();

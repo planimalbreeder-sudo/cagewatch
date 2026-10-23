@@ -97,6 +97,16 @@
   #log .warn .lv{color:var(--warn)}
   #log .info .lv{color:var(--dim)}
 
+  /* 야간 조명: 화면 자체를 광원으로 쓴다. 전면 카메라와 같은 방향을 비춘다. */
+  #nightPanel{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;justify-content:flex-end}
+  #nightPanel.on{display:flex}
+  #nightCtl{background:rgba(0,0,0,.8);padding:12px 14px;
+    padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center}
+  #nightCtl input[type=range]{flex:1;accent-color:#f87171}
+  #nightCtl span{font-size:12px;color:#e6edf3;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #nightCtl button{background:#fff;color:#111;border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600}
+  #nightStat{font-size:11px;color:#8b949e;padding:0 14px 10px;background:rgba(0,0,0,.8)}
+
   #alarmBanner{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:14px 16px;
     padding-bottom:calc(14px + env(safe-area-inset-bottom));
     background:#7f1d1d;border-top:1px solid #b91c1c;display:none;align-items:center;gap:12px}
@@ -135,6 +145,7 @@
     <button id="btnRegion" class="btn ghost">관찰영역 지정</button>
     <button id="btnRegionClear" class="btn ghost">영역 해제</button>
     <button id="btnRecal" class="btn ghost" disabled>재보정</button>
+    <button id="btnNight" class="btn ghost">야간 조명</button>
   </div>
 
   <div class="cards">
@@ -145,6 +156,7 @@
     <div class="card"><span>최근 1분 활동률</span><b id="mMin">–</b></div>
     <div class="card"><span>마지막 움직임</span><b id="mLast">–</b></div>
     <div class="card"><span>움직임 판정 기준</span><b id="mThr">–</b></div>
+    <div class="card"><span>화면 밝기</span><b id="mLum">–</b></div>
   </div>
 
   <div id="liveNote" class="note">카메라를 케이지 쪽으로 고정한 뒤 <b>시작</b>을 누르세요. 첫 60초는 자동 보정 구간이라 알람이 울리지 않습니다.</div>
@@ -196,6 +208,20 @@
     <span>시스템 알림<i>안드로이드 알림창에 표시합니다.</i></span>
   </label>
 
+  <h2>카메라 / 야간</h2>
+
+  <label class="fld"><b>사용할 카메라</b>
+    <select id="sCam">
+      <option value="environment">후면 (기본)</option>
+      <option value="user">전면 (화면 쪽)</option>
+    </select>
+    <i>화면을 조명으로 쓰려면 전면 카메라를 골라야 합니다. 화면과 같은 방향을 봅니다. 바꾸면 카메라가 재시작됩니다.</i>
+  </label>
+
+  <label class="chk"><input type="checkbox" id="sRed">
+    <span>적색 채널로 분석<i>붉은 조명 아래에서만 켜세요. 평소 쓰는 흑백 변환 공식은 빨강에 30% 가중치만 줘서, 적색광에서는 신호의 대부분을 버립니다. 이걸 켜면 빨강만 그대로 씁니다.</i></span>
+  </label>
+
   <h2>감지 민감도</h2>
 
   <label class="fld"><b>샘플링 간격</b>
@@ -230,11 +256,20 @@
 
 </main>
 
+<div id="nightPanel">
+  <div id="nightStat">화면 밝기 <b id="nightLumVal">–</b> · 12 이상이면 카메라가 볼 수 있습니다</div>
+  <div id="nightCtl">
+    <span>적색 <b id="nightPctVal">40</b>%</span>
+    <input type="range" id="nightRange" min="5" max="100" step="5">
+    <button id="nightOff">해제</button>
+  </div>
+</div>
+
 <div id="alarmBanner">
   <p id="alarmText">알람</p>
   <button id="btnAck">해제</button>
 </div>
 
-<script src="app.js?v=1.2"></script>
+<script src="app.js?v=1.4"></script>
 </body>
 </html>
