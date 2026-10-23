@@ -13,7 +13,7 @@
 
 /* 화면 상단에 그대로 표시된다. 폰이 구버전을 캐시했는지 눈으로 바로 확인하려는 것.
    코드를 고쳐 배포할 때마다 올리고, index.html 의 app.js?v= 도 같이 맞춘다. */
-const VERSION = '1.5';
+const VERSION = '1.6';
 
 /* ───────────────────────── 설정 ───────────────────────── */
 
@@ -188,6 +188,7 @@ const S = {
   calibScores: [],
   activeThreshold: 8,
   noiseFloor: 0,
+  score: null,           // 최근 프레임 움직임 점수
   night: false,          // 야간 조명 패널 표시 여부
   preNight: null,        // 야간 조명 켜기 전 카메라/채널 설정
   lum: null,             // 최근 프레임 평균 밝기 (0~255)
@@ -604,6 +605,7 @@ function fmtIdle(lastMin) {
 
 function updateLiveUI(r) {
   if (r) {
+    S.score = r.score;
     const pct = Math.min(100, Math.round((r.score / Math.max(1, S.activeThreshold * 4)) * 100));
     $('mNow').innerHTML = `${r.score}<small>px</small>`;
     $('mBar').style.width = pct + '%';
@@ -622,10 +624,25 @@ function updateLiveUI(r) {
     lumEl.innerHTML = S.lum == null ? '–' : `${Math.round(S.lum)}<small>/255</small>`;
     lumEl.style.color = (S.lum != null && S.lum < cfg.darkLum) ? 'var(--bad)' : '';
   }
-  const nv = $('nightLumVal');
-  if (nv && S.night) {
+  // 야간 조명이 켜져 있으면 UI가 전부 가려지므로, 붉은 화면 아래 띠에
+  // 감지가 살아있는지 확인할 최소한의 지표를 그대로 띄운다.
+  if (S.night) {
+    const nv = $('nightLumVal');
     nv.textContent = S.lum == null ? '–' : Math.round(S.lum);
     nv.style.color = (S.lum != null && S.lum >= cfg.darkLum) ? '#4ade80' : '#f87171';
+
+    const active = S.score != null && !S.calibrating && S.score > S.activeThreshold;
+    const nm = $('nightMove');
+    nm.textContent = S.calibrating ? '보정 중'
+      : (S.score == null ? '–' : `${S.score} / ${S.activeThreshold}`);
+    nm.style.color = active ? '#4ade80' : '';
+
+    $('nightMin').textContent = b && b.frames ? `${Math.round((b.active / b.frames) * 100)}%` : '–';
+    $('nightLast').textContent = S.calibrating ? '–' : fmtIdle(S.lastActiveMinute);
+
+    const bar = $('nightBar');
+    bar.style.width = Math.min(100, Math.round(((S.score || 0) / Math.max(1, S.activeThreshold * 4)) * 100)) + '%';
+    bar.style.background = active ? '#4ade80' : '#3d444d';
   }
 }
 setInterval(() => { if (S.running) updateLiveUI(null); }, 5000);

@@ -106,7 +106,13 @@
   #nightCtl input[type=range]{flex:1;accent-color:#f87171}
   #nightCtl span{font-size:12px;color:#e6edf3;white-space:nowrap;font-variant-numeric:tabular-nums}
   #nightCtl button{background:#fff;color:#111;border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600}
-  #nightStat{font-size:11px;color:#8b949e;padding:0 14px 10px;background:rgba(0,0,0,.8)}
+  #nightStat{padding:10px 14px 8px;background:rgba(0,0,0,.8)}
+  #nightRow{display:flex;gap:14px;font-size:11px;color:#8b949e;
+    font-variant-numeric:tabular-nums;flex-wrap:wrap}
+  #nightRow b{color:#e6edf3;font-weight:600}
+  #nightBarWrap{height:5px;background:#21262d;border-radius:3px;margin-top:7px;overflow:hidden}
+  #nightBar{display:block;height:100%;width:0;background:#3d444d;border-radius:3px;transition:width .15s linear}
+  #nightHint{font-size:10px;color:#6e7681;margin-top:6px}
 
   #alarmBanner{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:14px 16px;
     padding-bottom:calc(14px + env(safe-area-inset-bottom));
@@ -258,7 +264,16 @@
 </main>
 
 <div id="nightPanel">
-  <div id="nightStat">화면 밝기 <b id="nightLumVal">–</b> · 12 이상이면 카메라가 볼 수 있습니다</div>
+  <div id="nightStat">
+    <div id="nightRow">
+      <span>밝기 <b id="nightLumVal">–</b></span>
+      <span>움직임 <b id="nightMove">–</b></span>
+      <span>최근 1분 <b id="nightMin">–</b></span>
+      <span>마지막 <b id="nightLast">–</b></span>
+    </div>
+    <div id="nightBarWrap"><i id="nightBar"></i></div>
+    <div id="nightHint">밝기가 12 이상이어야 카메라가 볼 수 있습니다. 막대가 초록이면 움직임을 잡은 것입니다.</div>
+  </div>
   <div id="nightCtl">
     <span>적색 <b id="nightPctVal">40</b>%</span>
     <input type="range" id="nightRange" min="5" max="100" step="5">
@@ -271,6 +286,6 @@
   <button id="btnAck">해제</button>
 </div>
 
-<script src="app.js?v=1.5"></script>
+<script src="app.js?v=1.6"></script>
 </body>
 </html>
