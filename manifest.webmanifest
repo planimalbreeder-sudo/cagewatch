@@ -1,0 +1,14 @@
+{
+  "name": "케이지워치 — 반려동물 활동 모니터",
+  "short_name": "케이지워치",
+  "description": "사용하지 않는 폰을 케이지 위에 두고 소형 반려동물의 움직임을 기록하고 이상을 알리는 앱",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

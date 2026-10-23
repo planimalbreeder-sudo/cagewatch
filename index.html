@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>케이지워치</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#2a313a;
+    --fg:#e6edf3; --dim:#8b949e;
+    --accent:#4ade80; --warn:#fbbf24; --bad:#f87171;
+    --gap:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.5 -apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    -webkit-text-size-adjust:100%}
+  body{padding:0 0 env(safe-area-inset-bottom)}
+  header{display:flex;align-items:center;gap:10px;padding:14px 16px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+  header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em}
+  .pill{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;
+    border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+  .pill.run{color:var(--accent);border-color:#1f4d33;background:#0f2a1c}
+  .pill.cal{color:var(--warn);border-color:#4d3f12;background:#2a2410}
+  .pill.err{color:var(--bad);border-color:#4d1f1f;background:#2a1212}
+
+  nav{display:flex;border-bottom:1px solid var(--line);position:sticky;top:51px;background:var(--bg);z-index:4}
+  nav button{flex:1;background:none;border:0;border-bottom:2px solid transparent;
+    color:var(--dim);padding:11px 4px;font:inherit;font-size:14px;cursor:pointer}
+  nav button.on{color:var(--fg);border-bottom-color:var(--accent)}
+
+  /* 폰 기준 폭으로 묶어둔다. 묶지 않으면 노트북에서 4:3 영상 상자가
+     화면 높이를 넘겨 버튼이 전부 스크롤 아래로 밀린다. */
+  main{padding:var(--gap);max-width:520px;margin:0 auto}
+  header,nav{padding-left:max(16px,calc(50% - 244px));padding-right:max(16px,calc(50% - 244px))}
+  nav{padding-left:max(0px,calc(50% - 260px));padding-right:max(0px,calc(50% - 260px))}
+  .tab{display:none}.tab.on{display:block}
+  h2{font-size:13px;color:var(--dim);font-weight:600;margin:20px 0 8px;
+    text-transform:uppercase;letter-spacing:.05em}
+  h2:first-child{margin-top:4px}
+
+  .stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;
+    border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+  .stage video{object-fit:cover}
+  .stage canvas{touch-action:none}
+
+  .row{display:flex;gap:8px;margin-top:var(--gap);flex-wrap:wrap;align-items:center}
+  button.btn{flex:1;min-width:88px;background:var(--panel);color:var(--fg);
+    border:1px solid var(--line);border-radius:8px;padding:11px 12px;font:inherit;cursor:pointer}
+  button.btn:active{background:#1f252e}
+  button.btn:disabled{opacity:.4;cursor:default}
+  button.btn.primary{background:#166534;border-color:#1f7a42;font-weight:600}
+  button.btn.on{background:#1d4ed8;border-color:#2563eb;color:#fff;font-weight:600}
+  button.btn.ghost{flex:0 0 auto;font-size:13px;padding:8px 12px;color:var(--dim)}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:var(--gap)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .card span{display:block;font-size:11px;color:var(--dim);margin-bottom:3px}
+  .card b{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}
+  .card b small{font-size:12px;color:var(--dim);font-weight:400;margin-left:2px}
+  .bar{height:4px;background:#21262d;border-radius:2px;margin-top:7px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);
+    border-radius:2px;transition:width .15s linear}
+
+  .note{margin-top:var(--gap);font-size:13px;color:var(--dim);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .note.warn{color:#fcd34d;border-color:#4d3f12;background:#1f1b0d}
+  .note b{color:var(--fg)}
+
+  canvas.chart{width:100%;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;display:block}
+  .legend{font-size:11px;color:var(--dim);margin:6px 0 0;display:flex;gap:14px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+  label.fld{display:block;margin-top:14px;font-size:13px;color:var(--dim)}
+  label.fld b{display:block;color:var(--fg);font-weight:500;font-size:14px;margin-bottom:5px}
+  label.fld i{display:block;font-style:normal;font-size:12px;margin-top:4px;color:#6e7681}
+  input[type=number],input[type=time],select{width:100%;background:#0b0f14;color:var(--fg);
+    border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  label.chk{display:flex;gap:9px;align-items:flex-start;margin-top:14px;font-size:14px}
+  label.chk input{margin:3px 0 0;width:18px;height:18px;flex:0 0 auto;accent-color:#16a34a}
+  label.chk i{display:block;font-style:normal;font-size:12px;color:#6e7681;margin-top:2px}
+
+  #log{font-size:12px}
+  #log div{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;gap:9px}
+  #log div:last-child{border-bottom:0}
+  #log time{color:#6e7681;flex:0 0 auto;font-variant-numeric:tabular-nums}
+  #log .lv{flex:0 0 auto}
+  #log .alarm .lv{color:var(--bad)}
+  #log .warn .lv{color:var(--warn)}
+  #log .info .lv{color:var(--dim)}
+
+  #alarmBanner{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:14px 16px;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    background:#7f1d1d;border-top:1px solid #b91c1c;display:none;align-items:center;gap:12px}
+  #alarmBanner.on{display:flex}
+  #alarmBanner p{margin:0;flex:1;font-size:14px;font-weight:600}
+  #alarmBanner button{background:#fff;color:#7f1d1d;border:0;border-radius:8px;
+    padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>케이지워치</h1>
+  <div id="pill" class="pill">대기</div>
+</header>
+
+<nav>
+  <button data-tab="live" class="on">모니터</button>
+  <button data-tab="stats">기록</button>
+  <button data-tab="set">설정</button>
+</nav>
+
+<main>
+
+<section id="tab-live" class="tab on">
+  <div class="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="row">
+    <button id="btnStart" class="btn primary">시작</button>
+    <button id="btnStop" class="btn" disabled>정지</button>
+  </div>
+  <div class="row">
+    <button id="btnRegion" class="btn ghost">관찰영역 지정</button>
+    <button id="btnRegionClear" class="btn ghost">영역 해제</button>
+    <button id="btnRecal" class="btn ghost" disabled>재보정</button>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <span>현재 움직임</span><b id="mNow">–</b>
+      <div class="bar"><i id="mBar"></i></div>
+    </div>
+    <div class="card"><span>최근 1분 활동률</span><b id="mMin">–</b></div>
+    <div class="card"><span>마지막 움직임</span><b id="mLast">–</b></div>
+    <div class="card"><span>움직임 판정 기준</span><b id="mThr">–</b></div>
+  </div>
+
+  <div id="liveNote" class="note">카메라를 케이지 쪽으로 고정한 뒤 <b>시작</b>을 누르세요. 첫 60초는 자동 보정 구간이라 알람이 울리지 않습니다.</div>
+</section>
+
+<section id="tab-stats" class="tab">
+  <h2>최근 24시간 활동률</h2>
+  <canvas id="c24" class="chart" height="170"></canvas>
+  <p class="legend"><span><i style="background:#4ade80"></i>활동률</span><span><i style="background:#3d444d"></i>기록 없음</span></p>
+
+  <h2>시간대별 평균</h2>
+  <canvas id="cHour" class="chart" height="150"></canvas>
+  <p class="legend">수집된 전체 기간의 0시~23시 평균. 햄스터는 보통 밤에 솟고 낮에 가라앉는 모양이 나옵니다.</p>
+
+  <h2>일별 활동 시간</h2>
+  <canvas id="cDay" class="chart" height="140"></canvas>
+
+  <div id="statNote" class="note">기록이 쌓이면 여기에 요약이 나옵니다.</div>
+  <div class="row">
+    <button id="btnExport" class="btn ghost">CSV 내보내기</button>
+    <button id="btnWipe" class="btn ghost">기록 전체 삭제</button>
+  </div>
+
+  <h2>이벤트</h2>
+  <div class="card" style="padding:0"><div id="log"></div></div>
+</section>
+
+<section id="tab-set" class="tab">
+  <h2>알람</h2>
+
+  <label class="fld"><b>무활동 알람 기준</b>
+    <input type="number" id="sInact" min="5" max="1440" step="5">
+    <i>이 시간(분) 동안 움직임이 없으면 알람. 햄스터는 낮에 몇 시간씩 자므로 아래 감시 시간대와 함께 쓰세요.</i>
+  </label>
+
+  <label class="chk"><input type="checkbox" id="sGate">
+    <span>감시 시간대에만 알람<i>햄스터가 활동하는 밤 시간대만 무활동을 문제로 봅니다. 낮잠에 알람이 울리는 걸 막습니다.</i></span>
+  </label>
+
+  <div class="two">
+    <label class="fld"><b>감시 시작</b><input type="time" id="sFrom"></label>
+    <label class="fld"><b>감시 종료</b><input type="time" id="sTo"></label>
+  </div>
+
+  <label class="chk"><input type="checkbox" id="sSound">
+    <span>소리 알람<i>해제할 때까지 반복해서 울립니다.</i></span>
+  </label>
+  <label class="chk"><input type="checkbox" id="sNotif">
+    <span>시스템 알림<i>안드로이드 알림창에 표시합니다.</i></span>
+  </label>
+
+  <h2>감지 민감도</h2>
+
+  <label class="fld"><b>샘플링 간격</b>
+    <input type="number" id="sSample" min="100" max="5000" step="50">
+    <i>밀리초. 250이면 초당 4회 비교합니다. 값을 키우면 발열과 배터리 소모가 줄지만 짧은 움직임을 놓칩니다.</i>
+  </label>
+
+  <label class="fld"><b>픽셀 변화 임계값</b>
+    <input type="number" id="sPix" min="4" max="80" step="1">
+    <i>한 픽셀이 이 값 이상 밝아지거나 어두워지면 변했다고 봅니다. 화면이 지글거리면 올리세요. 기본 18.</i>
+  </label>
+
+  <label class="fld"><b>움직임 판정 배수</b>
+    <input type="number" id="sMul" min="1" max="20" step="0.5">
+    <i>보정으로 측정한 노이즈 수준의 몇 배를 넘어야 실제 움직임으로 볼지. 오탐이 많으면 올리고, 놓치면 내리세요.</i>
+  </label>
+
+  <label class="fld"><b>분 활동 인정 기준</b>
+    <input type="number" id="sMinPct" min="0.5" max="50" step="0.5">
+    <i>%. 1분 중 이 비율 이상의 프레임에서 움직임이 보여야 "활동한 분"으로 칩니다. 무활동 알람은 이 기준만 봅니다. 노이즈가 분당 한두 프레임 튀는 걸 걸러서 알람이 영영 안 울리는 사태를 막습니다. 기본 2.</i>
+  </label>
+
+  <h2>기록</h2>
+  <label class="fld"><b>보관 기간</b>
+    <input type="number" id="sKeep" min="3" max="365" step="1">
+    <i>일. 이 기간이 지난 분 단위 기록은 자동으로 삭제됩니다.</i>
+  </label>
+
+  <div class="row"><button id="btnSave" class="btn primary">저장</button></div>
+  <div id="setNote" class="note"></div>
+</section>
+
+</main>
+
+<div id="alarmBanner">
+  <p id="alarmText">알람</p>
+  <button id="btnAck">해제</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
